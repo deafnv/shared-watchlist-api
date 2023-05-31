@@ -1,23 +1,26 @@
-import dotenv from 'dotenv';
-import { google } from 'googleapis'
-import isEmpty from 'lodash.isempty';
-import { createClient } from '@supabase/supabase-js';
-import xorWith from 'lodash/xorWith.js';
-import differenceWith from 'lodash/differenceWith.js';
-import isEqual from 'lodash/isEqual.js';
-import uniq from 'lodash/uniq.js';
-import flatten from 'lodash/flatten.js';
-import express from 'express';
-import cors from 'cors';
-import http from 'http';
+import http from 'http'
+import express from 'express'
+import cors from 'cors'
+import dotenv from 'dotenv'
 
-dotenv.config();
+import { google, sheets_v4 } from 'googleapis'
+import { PostgrestResponse, createClient } from '@supabase/supabase-js'
+import isEmpty from 'lodash/isEmpty.js'
+import xorWith from 'lodash/xorWith.js'
+import differenceWith from 'lodash/differenceWith.js'
+import isEqual from 'lodash/isEqual.js'
+import uniq from 'lodash/uniq.js'
+import flatten from 'lodash/flatten.js'
 
-const app = express();
+import { PTWRolled, PTWTable, Seasonal } from './types.js'
+
+dotenv.config()
+
+const app = express()
 
 app.use(
   cors({origin: ['http://localhost:3000', 'http://127.0.0.1:3000'].concat(process.env.CORS_URL.split(','))})
-);
+)
 
 app.get('/', (req, res) => {
   res.send(isFunctionRunning)
@@ -25,21 +28,21 @@ app.get('/', (req, res) => {
 
 app.get('/stop', (req, res) => {
   if (isFunctionRunning) {
-    isFunctionRunning = false;
+    isFunctionRunning = false
     res.send('Function stopped')
   } else res.send('Function already stopped')
 })
 
 app.get('/start', (req, res) => {
   if (!isFunctionRunning) {
-    isFunctionRunning = true;
+    isFunctionRunning = true
     res.send('Function started')
   } else res.send('Function already started')
 })
 
 app.get('/flush', async (req, res) => {
   try {
-    await updateDatabase();
+    await updateDatabase()
     res.send('Function invoked')
   } catch (error) {
     console.error(error)
@@ -47,7 +50,7 @@ app.get('/flush', async (req, res) => {
 })
 
 app.get('/refresh', (req, res) => {
-  timer = new Date().getTime();
+  timer = new Date().getTime()
   res.send('Timer refreshed')
 })
 
@@ -55,17 +58,17 @@ app.get('/timer', (req, res) => {
   res.send(new Date(timer))
 })
 
-const httpServer = http.createServer(app);
+const httpServer = http.createServer(app)
 httpServer.listen(3004, () => {
-  console.log('HTTP Server running on port 3004');
-});
+  console.log('HTTP Server running on port 3004')
+})
 
-const auth = await google.auth.getClient({ credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS), scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
-const sheets = google.sheets({ version: 'v4', auth });
+const auth = await google.auth.getClient({ credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS), scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
+const sheets = google.sheets({ version: 'v4', auth })
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY)
 
-let isFunctionRunning = true;
-let timer = new Date().getTime();
+let isFunctionRunning = true
+let timer = new Date().getTime()
 
 const updateDatabase = async () => {
   if (isFunctionRunning && new Date().getTime() - timer < 3600000) {
@@ -75,25 +78,25 @@ const updateDatabase = async () => {
       spreadsheetId: process.env.SHEET_ID,
       range: `Sheet1!A2:J999`,
       fields: 'values'
-    });
+    })
     
     //TODO: Fix the timestamp here for sorting client side, alternatively could sort using JS's convert string to date function.
     const objectifiedResCompleted = resCompleted.data.values?.map(item => {
-      let fixed = new Array(10);
-      fixed.fill(null);
-      Object.seal(fixed);
-      let [id, title, type, episode, rating1, rating2, rating3, start, end, notes] = item;
-      fixed = [id, title, type, episode, rating1, rating2, rating3, start, end, notes];
+      let fixed = new Array(10)
+      fixed.fill(null)
+      Object.seal(fixed)
+      let [id, title, type, episode, rating1, rating2, rating3, start, end, notes] = item
+      fixed = [id, title, type, episode, rating1, rating2, rating3, start, end, notes]
 
-      const startconv = new Date(fixed[7]);
-      const endconv = new Date(fixed[8]);
-      const episodeOriginal = fixed[3] ?? '';
-      const episodeSplit = episodeOriginal.split('/');
-      const episodeActual = episodeSplit[0] ? parseInt(episodeSplit[0]) : -1;
-      const episodeTotal = episodeSplit[1] ? parseInt(episodeSplit[1]) : -1;
-      const typeOriginal = fixed[2] ?? '';
-      const typeSplit = typeOriginal.split('+');
-      const typeConv = typeSplit.map(item => item.replace(/\s+/g, ''));
+      const startconv = new Date(fixed[7])
+      const endconv = new Date(fixed[8])
+      const episodeOriginal: string = fixed[3] ?? ''
+      const episodeSplit = episodeOriginal.split('/')
+      const episodeActual = episodeSplit[0] ? parseInt(episodeSplit[0]) : -1
+      const episodeTotal = episodeSplit[1] ? parseInt(episodeSplit[1]) : -1
+      const typeOriginal: string = fixed[2] ?? ''
+      const typeSplit = typeOriginal.split('+')
+      const typeConv = typeSplit.map(item => item.replace(/\s+/g, ''))
       return {
         id: parseInt(fixed[0]), 
         title: fixed[1] ?? '',
@@ -106,45 +109,46 @@ const updateDatabase = async () => {
         rating2: fixed[5] ?? '',
         rating3: fixed[6] ?? '',
         start: fixed[7] ?? '',
-        startconv: startconv == 'Invalid Date' ? 0 : startconv.getTime(),
+        startconv: isNaN(startconv.getTime()) ? 0 : startconv.getTime(),
         end: fixed[8] ?? '',
-        endconv: endconv == 'Invalid Date' ? 0 : endconv.getTime(),
+        endconv: isNaN(endconv.getTime()) ? 0 : endconv.getTime(),
         rating1average: fixed[4] ? getAverage(fixed[4]) : 0,
         rating2average: fixed[5] ? getAverage(fixed[5]) : 0,
         rating3average: fixed[6] ? getAverage(fixed[6]) : 0,
         notes: fixed[9] ?? ''
       }
-    });
+    })
     
     const dataCompleted = await supabase 
       .from('Completed')
       .select()
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
 
     const differenceCompleted = uniq(xorWith(objectifiedResCompleted, dataCompleted.data, isEqual).map(item => {
-      return item.id;
-    }));
+      return item.id
+    }))
     
     if (differenceCompleted.length > 0) {
       const differenceCompletedFromSheet = flatten(differenceCompleted.map(item => {
         return objectifiedResCompleted.filter(title => {
-          return title.id === item;
+          return title.id === item
         })
       }))
+      console.log(differenceCompletedFromSheet)
 
       //? Accounting for deletes
       if (dataCompleted.data.length > objectifiedResCompleted.length) {
         const deletedCompletedIds = differenceWith(dataCompleted.data, objectifiedResCompleted, isEqual).map(item => {
-          return item.id;
-        });
+          return item.id
+        })
         /* const responseDelete =  */await supabase
           .from('Completed')
           .delete()
-          .in('id', deletedCompletedIds);
+          .in('id', deletedCompletedIds)
       }
       /* const responseUpsert =  */await supabase
         .from('Completed')
-        .upsert(differenceCompletedFromSheet);
+        .upsert(differenceCompletedFromSheet)
     }
 
     //console.log(objectifiedResCompleted[37])
@@ -158,77 +162,77 @@ const updateDatabase = async () => {
     //? Right side of sheet
     const resRight = await sheets.spreadsheets.get({
       spreadsheetId: process.env.SHEET_ID,
-      ranges: 'L2:R45',
+      ranges: ['L2:R45'],
       fields: 'sheets/data/rowData/values(formattedValue,userEnteredFormat/backgroundColor)'
-    });
+    })
 
     const dataCasual = await supabase 
       .from('PTW-Casual')
       .select()
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
     const dataMovies = await supabase 
       .from('PTW-Movies')
       .select()
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
     const dataNonCasual = await supabase 
       .from('PTW-NonCasual')
       .select()
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
     const dataRolled = await supabase 
       .from('PTW-Rolled')
       .select()
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
     const dataSeasonal = await supabase 
       .from('PTW-CurrentSeason')
       .select()
-      .order('order', { ascending: true });
+      .order('order', { ascending: true })
     
-    let casual = []
-      , movies = []
-      , nonCasual = []
-      , ptwInOrder = []
-      , currentSeason = [];
+    let casual: PTWTable[] = []
+    let movies: PTWTable[] = []
+    let nonCasual: PTWTable[] = []
+    let ptwInOrder: PTWRolled[] = []
+    let currentSeason: Seasonal[] = []
     
     resRight.data.sheets[0].data[0].rowData.forEach((item, index) => {
       if (index < 15 && item.values[0].formattedValue) {
         casual.push({
           id: index,
           title: item.values[0].formattedValue
-        });
+        })
       } else if (index > 19 && index <= 24 && item.values[0].formattedValue) {
         movies.push({
           id: index - 20,
           title: item.values[0].formattedValue
         })
       }
-      if (index < 15 && item.values[1].formattedValue) nonCasual.push({id: index, title: item.values[1].formattedValue});
+      if (index < 15 && item.values[1].formattedValue) nonCasual.push({id: index, title: item.values[1].formattedValue})
       if (index < 21 && item.values[2].formattedValue) ptwInOrder.push({
         id: index, 
         title: item.values[2].formattedValue,
         status: determineState(item.values[2]?.userEnteredFormat.backgroundColor)
-      });
+      })
       if (index < 21 && item.values[3]?.formattedValue) currentSeason.push(
         {
           title: item.values[3].formattedValue,
           status: determineState(item.values[4]?.userEnteredFormat.backgroundColor),
           order: index
         }
-      );
-    });
+      )
+    })
 
-    commitDifference(casual, dataCasual, 'PTW-Casual');
-    commitDifference(movies, dataMovies, 'PTW-Movies');
-    commitDifference(nonCasual, dataNonCasual, 'PTW-NonCasual');
-    commitDifference(ptwInOrder, dataRolled, 'PTW-Rolled');
-    commitDifferenceSeasonal(currentSeason, dataSeasonal, 'PTW-CurrentSeason');
+    commitDifference(casual, dataCasual, 'PTW-Casual')
+    commitDifference(movies, dataMovies, 'PTW-Movies')
+    commitDifference(nonCasual, dataNonCasual, 'PTW-NonCasual')
+    commitDifference(ptwInOrder, dataRolled, 'PTW-Rolled')
+    commitDifferenceSeasonal(currentSeason, dataSeasonal, 'PTW-CurrentSeason')
     
     /* console.timeEnd('timer') */
   }
 }
 
-setInterval(updateDatabase, 3000);
+setInterval(updateDatabase, 3000)
 
-async function commitDifferenceSeasonal(sheetValues, dataFromDB, tableName) {
+async function commitDifferenceSeasonal(sheetValues: any[], dataFromDB: PostgrestResponse<any>, tableName: string) {
   //!Account for transposition/deletes
   if (dataFromDB.data?.length > sheetValues.length) {
     const removedOrderDB = dataFromDB.data.map(item => ({
@@ -240,64 +244,64 @@ async function commitDifferenceSeasonal(sheetValues, dataFromDB, tableName) {
       status: item.status
     }))
     const missingItem = uniq(xorWith(removedOrderSheet, removedOrderDB, isEqual).map(item => {
-      return item.title;
-    }));
+      return item.title
+    }))
     
     const responseDelete = await supabase
         .from(tableName)
         .delete()
-        .in('title', missingItem);
+        .in('title', missingItem)
   }
 
   const difference = uniq(xorWith(sheetValues, dataFromDB.data, isEqual).map(item => {
-    return item.title;
-  }));
+    return item.title
+  }))
   if (difference?.length > 0) {
     const differenceFromSheet = flatten(difference.map(item => {
       return sheetValues.filter(title => {
-        return title.title === item;
+        return title.title === item
       })
     }))
 
     const responseUpsert = await supabase
       .from(tableName)
-      .upsert(differenceFromSheet);
+      .upsert(differenceFromSheet)
   }
 }
 
 //TODO: Improve this commitDifference function to reflect the more efficient commitDifference above
-async function commitDifference(sheetValues, dataFromDB, tableName) {
+async function commitDifference(sheetValues: any[], dataFromDB: PostgrestResponse<any>, tableName: string) {
   const difference = uniq(xorWith(sheetValues, dataFromDB.data, isEqual).map(item => {
-    return item.id;
-  }));
+    return item.id
+  }))
   if (difference?.length > 0) {
     const differenceFromSheet = flatten(difference.map(item => {
       return sheetValues.filter(title => {
-        return title.id === item;
+        return title.id === item
       })
     }))
 
     //? Accounting for deletes
     if (dataFromDB.data.length > sheetValues.length) {
       const deletedIds = differenceWith(dataFromDB.data, sheetValues, isEqual).map(item => {
-        return item.id;
-      });
+        return item.id
+      })
       /* const responseDelete =  */await supabase
         .from(tableName)
         .delete()
-        .in('id', deletedIds);
+        .in('id', deletedIds)
     }
     /* const responseUpsert =  */await supabase
       .from(tableName)
-      .upsert(differenceFromSheet);
+      .upsert(differenceFromSheet)
   }
 }
 
-function determineState(backgroundColor) {
-  const red = backgroundColor?.red;
-  const green = backgroundColor?.green;
+function determineState(backgroundColor: sheets_v4.Schema$Color) {
+  const red = backgroundColor?.red
+  const green = backgroundColor?.green
   const blue = backgroundColor?.blue
-  let status;
+  let status
   if ((0.20 < red && 0.21 > red) && (0.65 < green && 0.66 > green) && (0.32 < blue && 0.33 > blue)) {
     //? Watched
     status = 'Watched'
@@ -308,26 +312,26 @@ function determineState(backgroundColor) {
   }
   else if ((0.98 < red && 0.99 > red) && (0.73 < green && 0.74 > green) && (0.01 < blue && 0.02 > blue)) {
     //? Loaded
-    status = 'Loaded';
+    status = 'Loaded'
   }
   else if (isEmpty(backgroundColor)) {
     status = 'Not aired'
   }
   else {
-    status = 'Unknown';
+    status = 'Unknown'
   }
-  return status;
+  return status
 }
 
 //! This will give errors for ratings with more than 2 number probably.
-function getAverage(param) {
-  const arr = param.match(/(\d\.\d)|(\d+)/g);
+function getAverage(param: string) {
+  const arr = param.match(/(\d\.\d)|(\d+)/g)
   if (arr?.length > 1) {
-    return ((parseFloat(arr[0]) + parseFloat(arr[1])) / 2);
+    return ((parseFloat(arr[0]) + parseFloat(arr[1])) / 2)
   } else if (!arr) {
     //just to account for weird texts in rating field
-    return 0;
+    return 0
   } else {
-    return parseFloat(param);
+    return parseFloat(param)
   }
 }

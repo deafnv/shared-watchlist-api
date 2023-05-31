@@ -1,6 +1,12 @@
+# Node
 /node_modules
+/build
+/dist
+
+# Configs
 .env
 .vscode
+
+# Legacy
 sample *
-*.log
-function-dev.js
+notes.md
