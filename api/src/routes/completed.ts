@@ -32,7 +32,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 			return res.status(500).send('Something went wrong when retreiving data from database')
 		const dataDBUnprocessed = dataDBCompleted.data.filter((item) => {
 			return (
-				(item?.CompletedDetails as { mal_id: number | null })?.mal_id == -1 ||
+				item?.CompletedDetails[0]?.mal_id == -1 ||
 				!item.CompletedDetails
 			)
 		})
@@ -151,7 +151,7 @@ router.get('/loadsequels', async (req, res) => {
 		const noSequelsMalId = xorWith(
 			dataDBCompleted.data?.map(item => ({
 				id: item.id,
-				mal_id: (item.CompletedDetails as { mal_id: number | null; }).mal_id
+				mal_id: item.CompletedDetails[0].mal_id
 			})), 
 			dataDBSequels.data?.map(item => ({
 				id: item.anime_id,
@@ -167,7 +167,7 @@ router.get('/loadsequels', async (req, res) => {
 		console.log(leftJoin.error)
 		console.log(leftJoin.data) */
 
-		const completedMalIds = dataDBCompleted.data.map((item) => (item.CompletedDetails as { mal_id: number | null; }).mal_id).filter(i => i)
+		const completedMalIds = dataDBCompleted.data.map((item) => item.CompletedDetails[0].mal_id).filter(i => i)
 
 		res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Content-Type', 'text/event-stream')

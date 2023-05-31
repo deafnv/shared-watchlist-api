@@ -16,7 +16,6 @@ import addtocompleted from './routes/addtocompleted.js'
 
 import authorize from './lib/authorize.js'
 
-import registerMessageHandlers from './routes/socket/message.js'
 import registerRollHandlers from './routes/socket/roll.js'
 import registerPingHandlers from './routes/socket/ping.js'
 
@@ -63,7 +62,6 @@ const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   console.log('Someone connected')
 
-  registerMessageHandlers(io, socket)
 	registerRollHandlers(io, socket)
 	registerPingHandlers(io, socket)
 })

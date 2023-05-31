@@ -1,7 +1,12 @@
+# Node
 /node_modules
 /build
+/dist
+
+# Configs
 .env
 .vscode
+
+# Legacy
 sample *
-*.log
 notes.md
