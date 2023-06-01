@@ -111,7 +111,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 
 		return res.status(200).send(malResponse)
 	} catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).send(error)
 	}
 })
@@ -123,10 +123,10 @@ router.get('/loadsequels', async (req, res) => {
 			process.env.SUPABASE_SERVICE_API_KEY!
 		)
 
-		await supabase
+		/* await supabase
 			.from('UnwatchedSequels')
 			.delete()
-			.neq('id', -2)
+			.neq('id', -2) */
 
 		const dataDBCompleted = await supabase
 			.from('Completed')
@@ -145,11 +145,14 @@ router.get('/loadsequels', async (req, res) => {
 			.select()
 		if (!dataDBCompleted.data) return res.status(500).send('Something went wrong when retreiving data from database')
 		
+		//* Find all titles that doesn't already have an unwatched sequel loaded in the table 
 		const noSequelsMalId = xorWith(
-			dataDBCompleted.data?.map(item => ({
-				id: item.id,
-				mal_id: item.CompletedDetails[0].mal_id
-			})), 
+			dataDBCompleted.data?.map(item => {
+				return ({
+					id: item.id,
+					mal_id: (item.CompletedDetails as unknown as { mal_id: number }).mal_id
+				})
+			}), 
 			dataDBSequels.data?.map(item => ({
 				id: item.anime_id,
 				mal_id: item.mal_id,
@@ -164,21 +167,15 @@ router.get('/loadsequels', async (req, res) => {
 		console.log(leftJoin.error)
 		console.log(leftJoin.data) */
 
-		const completedMalIds = dataDBCompleted.data.map((item) => item.CompletedDetails[0].mal_id).filter(i => i)
+		const completedMalIds = dataDBCompleted.data.map((item) => (item.CompletedDetails as unknown as { mal_id: number }).mal_id).filter(i => i)
 
-		res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Content-Type', 'text/event-stream')
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Connection', 'keep-alive')
-		res.flushHeaders()
-  	res.write('event: start\ndata: { "message": "Process started" }\n\n')
+		res.sendStatus(200)
 
-		//TODO: Blocking. Takes way too long.
+		//TODO: Blocking. Takes way too long, this just gets blocked by MAL
 		let counter = 0
 		let sequels: Array<any> = []
 		for (const item of noSequelsMalId) {
 			counter++
-			res.write(`event: progress\ndata: { "message": "${item.mal_id}", "count": ${counter} }\n\n`)
 			
 			const cheerioData = await axios.get(`https://myanimelist.net/anime/${item.mal_id}`, {
 				headers: { 'Accept-Encoding': 'gzip,deflate,compress' }
@@ -189,6 +186,7 @@ router.get('/loadsequels', async (req, res) => {
 				let sequel: { anime_id: any; mal_id: any; seq_title: string; seq_mal_id: number }
 				for (const element of relatedTable) {
 					if ($(element).text().trim().includes('Sequel:')) {
+						//* If the found sequel hasn't already been watched, find the information on the sequel and add it
 						if (!completedMalIds.includes(parseInt($(element).children().last().children().attr('href')?.split('/')[2] ?? '0'))) {
 							try {
 								const { data } = await axios.get(`https://myanimelist.net${$(element).children().last().children().attr('href')!}`, {
@@ -206,7 +204,7 @@ router.get('/loadsequels', async (req, res) => {
 									})
 								}
 							} catch (error) {
-								console.log(error)
+								console.error(error)
 							}
 						}
 					}
@@ -217,12 +215,9 @@ router.get('/loadsequels', async (req, res) => {
 		}
 			
 		await supabase.from('UnwatchedSequels').upsert(sequels)
-
-		res.write(`event: end\ndata: { "message": "Process completed entirely" }\n\n`)
-		res.end()
 	} 
 	catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).send(JSON.stringify(error))
 	}
 })
