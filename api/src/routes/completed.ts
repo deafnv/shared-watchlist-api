@@ -31,10 +31,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 		if (!dataDBCompleted.data)
 			return res.status(500).send('Something went wrong when retreiving data from database')
 		const dataDBUnprocessed = dataDBCompleted.data.filter((item) => {
-			return (
-				item?.CompletedDetails[0]?.mal_id == -1 ||
-				!item.CompletedDetails
-			)
+			return (!item.CompletedDetails || item?.CompletedDetails[0]?.mal_id == -1)
 		})
 		if (dataDBCompleted.data.length == 0) return res.status(200).send('No more to update')
 
