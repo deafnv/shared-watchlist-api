@@ -3,14 +3,17 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 
+import { Server } from 'socket.io'
 import { google, sheets_v4 } from 'googleapis'
-import { PTWCasual, PTWMovies, PTWNonCasual, PTWRolled, PrismaClient, Seasonal } from '@prisma/client'
+import { Completed, PTWCasual, PTWMovies, PTWNonCasual, PTWRolled, PrismaClient, Seasonal } from '@prisma/client'
 import isEmpty from 'lodash/isEmpty.js'
 import xorWith from 'lodash/xorWith.js'
 import differenceWith from 'lodash/differenceWith.js'
 import isEqual from 'lodash/isEqual.js'
 import uniq from 'lodash/uniq.js'
 import flatten from 'lodash/flatten.js'
+
+import emitRealtimeChanges, { Tables } from './realtime.js'
 
 dotenv.config()
 
@@ -57,6 +60,13 @@ app.get('/timer', (req, res) => {
 })
 
 const httpServer = http.createServer(app)
+
+export const io = new Server(httpServer, {
+	cors: {
+		origin: ['http://localhost:3000', 'http://192.168.0.102:3000'].concat(process.env.CORS_URL.split(',')),
+	}
+})
+
 httpServer.listen(3004, () => {
   console.log('HTTP Server running on port 3004')
 })
@@ -73,7 +83,7 @@ const TIME_LIMIT = 1800000 //? 30 minutes
 const updateDatabase = async () => {
   if (isFunctionRunning && new Date().getTime() - timer < TIME_LIMIT) {
     /* console.time('timer') */
-    
+    //? Left side of sheet
     const resCompleted = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
       range: `Sheet1!A2:J999`,
@@ -152,7 +162,7 @@ const updateDatabase = async () => {
         const deletedCompletedIds = differenceWith(dataCompleted, objectifiedResCompleted, isEqual).map(item => {
           return item.id
         })
-        /* const responseDelete =  */await prisma.completed.deleteMany({
+        await prisma.completed.deleteMany({
           where: {
             id: {
               in: deletedCompletedIds
@@ -160,17 +170,24 @@ const updateDatabase = async () => {
           }
         })
       }
-      const responseUpsert = await prisma.$transaction(
+      
+      await prisma.$transaction(
         differenceCompletedFromSheet.map(differenceCompletedFromSheetItem => {
+          let differenceItemConv = structuredClone(differenceCompletedFromSheetItem) as unknown as Omit<Completed, 'updatedAt' | 'createdAt'>
+          differenceItemConv.startconv = BigInt(differenceCompletedFromSheetItem.startconv)
+          differenceItemConv.endconv = BigInt(differenceCompletedFromSheetItem.endconv)
+          console.log(differenceItemConv.startconv, differenceItemConv.endconv)
           return prisma.completed.upsert({
-            create: differenceCompletedFromSheetItem,
-            update: differenceCompletedFromSheetItem,
+            create: differenceItemConv,
+            update: differenceItemConv,
             where: {
-              id: differenceCompletedFromSheetItem.id
+              id: differenceItemConv.id
             }
           })
         })
       )
+
+      emitRealtimeChanges('Completed', 'CHANGE')
     }
 
     //console.log(objectifiedResCompleted[37])
@@ -188,6 +205,7 @@ const updateDatabase = async () => {
       fields: 'sheets/data/rowData/values(formattedValue,userEnteredFormat/backgroundColor)'
     })
 
+    //* Retrieve data in tables for comparison
     const dataCasual = await prisma.pTWCasual.findMany({
       orderBy: {
         id: 'asc'
@@ -214,6 +232,7 @@ const updateDatabase = async () => {
       }
     })
     
+    //* Fill out arrays with the details of each section of the right side of the sheet
     let casual: PTWCasual[] = []
     let movies: PTWMovies[] = []
     let nonCasual: PTWNonCasual[] = []
@@ -232,22 +251,30 @@ const updateDatabase = async () => {
           title: item.values[0].formattedValue
         })
       }
-      if (index < 15 && item.values[1].formattedValue) nonCasual.push({id: index, title: item.values[1].formattedValue})
-      if (index < 21 && item.values[2].formattedValue) ptwInOrder.push({
-        id: index, 
-        title: item.values[2].formattedValue,
-        status: determineState(item.values[2]?.userEnteredFormat.backgroundColor)
-      })
-      if (index < 21 && item.values[3]?.formattedValue) currentSeason.push(
-        {
+
+      if (index < 15 && item.values[1].formattedValue) {
+        nonCasual.push({id: index, title: item.values[1].formattedValue})
+      }
+
+      if (index < 21 && item.values[2].formattedValue) {
+        ptwInOrder.push({
+          id: index, 
+          title: item.values[2].formattedValue,
+          status: determineState(item.values[2]?.userEnteredFormat.backgroundColor)
+        })
+      }
+      
+      if (index < 21 && item.values[3]?.formattedValue) {
+        currentSeason.push({
           title: item.values[3].formattedValue,
           status: determineState(item.values[4]?.userEnteredFormat.backgroundColor),
           order: index
-        }
-      )
+        })
+      }
     })
 
-    commitDifference(
+    await commitDifference(
+      'PTWCasual',
       casual, 
       dataCasual, 
       async (deletedIds) => {
@@ -273,7 +300,8 @@ const updateDatabase = async () => {
         )
       }
     )
-    commitDifference(
+    await commitDifference(
+      'PTWNonCasual',
       nonCasual, 
       dataNonCasual, 
       async (deletedIds) => {
@@ -299,7 +327,8 @@ const updateDatabase = async () => {
         )
       }
     )
-    commitDifference(
+    await commitDifference(
+      'PTWMovies',
       movies, 
       dataMovies, 
       async (deletedIds) => {
@@ -325,7 +354,8 @@ const updateDatabase = async () => {
         )
       }
     )
-    commitDifference(
+    await commitDifference(
+      'PTWRolled',
       ptwInOrder, 
       dataRolled, 
       async (deletedIds) => {
@@ -351,12 +381,13 @@ const updateDatabase = async () => {
         )
       }
     )
-    commitDifferenceSeasonal(currentSeason, dataSeasonal)
+    await commitDifferenceSeasonal(currentSeason, dataSeasonal)
     
     /* console.timeEnd('timer') */
   }
 }
 
+await updateDatabase()
 setInterval(updateDatabase, 3000)
 
 async function commitDifferenceSeasonal(sheetValues: Seasonal[], dataFromDB: Seasonal[]) {
@@ -398,11 +429,14 @@ async function commitDifferenceSeasonal(sheetValues: Seasonal[], dataFromDB: Sea
         })
       })
     )
+
+    emitRealtimeChanges('Seasonal', 'CHANGE')
   }
 }
 
 //TODO: Improve this commitDifference function to reflect the more efficient commitDifference above
 async function commitDifference(
+  table: Tables,
   sheetValues: any[], 
   dataFromDB: any[],
   deleteCb: (deletedIds: number[]) => Promise<void>,
@@ -426,6 +460,8 @@ async function commitDifference(
       await deleteCb(deletedIds)
     }
     await upsertCb(differenceFromSheet)
+
+    emitRealtimeChanges(table, 'CHANGE')
   }
 }
 
