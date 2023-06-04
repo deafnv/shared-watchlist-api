@@ -78,22 +78,22 @@ model GenresOnCompleted {
 }
 
 model PTWCasual {
-  id    Int    @id @default(autoincrement())
+  id    Int    @id
   title String @default("")
 }
 
 model PTWNonCasual {
-  id    Int    @id @default(autoincrement())
+  id    Int    @id
   title String @default("")
 }
 
 model PTWMovies {
-  id    Int    @id @default(autoincrement())
+  id    Int    @id
   title String @default("")
 }
 
 model PTWRolled {
-  id     Int    @id @default(autoincrement())
+  id     Int    @id
   title  String @default("")
   status String @default("")
 }

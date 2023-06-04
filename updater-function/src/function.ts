@@ -4,16 +4,13 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 
 import { google, sheets_v4 } from 'googleapis'
-import { PostgrestResponse, createClient } from '@supabase/supabase-js'
-import { Completed, Prisma, PrismaClient } from '@prisma/client'
+import { PTWCasual, PTWMovies, PTWNonCasual, PTWRolled, PrismaClient, Seasonal } from '@prisma/client'
 import isEmpty from 'lodash/isEmpty.js'
 import xorWith from 'lodash/xorWith.js'
 import differenceWith from 'lodash/differenceWith.js'
 import isEqual from 'lodash/isEqual.js'
 import uniq from 'lodash/uniq.js'
 import flatten from 'lodash/flatten.js'
-
-import { PTWRolled, PTWTable, Seasonal } from './types.js'
 
 dotenv.config()
 
@@ -66,7 +63,6 @@ httpServer.listen(3004, () => {
 
 const auth = await google.auth.getClient({ credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS), scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
 const sheets = google.sheets({ version: 'v4', auth })
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY)
 const prisma = new PrismaClient()
 
 let isFunctionRunning = true
@@ -186,36 +182,41 @@ const updateDatabase = async () => {
     //console.log(xorWith(objectifiedResCompleted, dataCompleted.data, isEqual))
     
     //? Right side of sheet
-    /* const resRight = await sheets.spreadsheets.get({
+    const resRight = await sheets.spreadsheets.get({
       spreadsheetId: process.env.SHEET_ID,
       ranges: ['L2:R45'],
       fields: 'sheets/data/rowData/values(formattedValue,userEnteredFormat/backgroundColor)'
     })
 
-    const dataCasual = await supabase 
-      .from('PTW-Casual')
-      .select()
-      .order('id', { ascending: true })
-    const dataMovies = await supabase 
-      .from('PTW-Movies')
-      .select()
-      .order('id', { ascending: true })
-    const dataNonCasual = await supabase 
-      .from('PTW-NonCasual')
-      .select()
-      .order('id', { ascending: true })
-    const dataRolled = await supabase 
-      .from('PTW-Rolled')
-      .select()
-      .order('id', { ascending: true })
-    const dataSeasonal = await supabase 
-      .from('PTW-CurrentSeason')
-      .select()
-      .order('order', { ascending: true })
+    const dataCasual = await prisma.pTWCasual.findMany({
+      orderBy: {
+        id: 'asc'
+      }
+    })
+    const dataMovies = await prisma.pTWMovies.findMany({
+      orderBy: {
+        id: 'asc'
+      }
+    })
+    const dataNonCasual = await prisma.pTWNonCasual.findMany({
+      orderBy: {
+        id: 'asc'
+      }
+    })
+    const dataRolled = await prisma.pTWRolled.findMany({
+      orderBy: {
+        id: 'asc'
+      }
+    })
+    const dataSeasonal = await prisma.seasonal.findMany({
+      orderBy: {
+        order: 'asc'
+      }
+    })
     
-    let casual: PTWTable[] = []
-    let movies: PTWTable[] = []
-    let nonCasual: PTWTable[] = []
+    let casual: PTWCasual[] = []
+    let movies: PTWMovies[] = []
+    let nonCasual: PTWNonCasual[] = []
     let ptwInOrder: PTWRolled[] = []
     let currentSeason: Seasonal[] = []
     
@@ -246,11 +247,111 @@ const updateDatabase = async () => {
       )
     })
 
-    commitDifference(casual, dataCasual, 'PTW-Casual')
-    commitDifference(movies, dataMovies, 'PTW-Movies')
-    commitDifference(nonCasual, dataNonCasual, 'PTW-NonCasual')
-    commitDifference(ptwInOrder, dataRolled, 'PTW-Rolled')
-    commitDifferenceSeasonal(currentSeason, dataSeasonal, 'PTW-CurrentSeason') */
+    commitDifference(
+      casual, 
+      dataCasual, 
+      async (deletedIds) => {
+        await prisma.pTWCasual.deleteMany({
+          where: {
+            id: {
+              in: deletedIds
+            }
+          }
+        })
+      },
+      async (differenceFromSheet) => {
+        await prisma.$transaction(
+          differenceFromSheet.map(differenceFromSheetItem => {
+            return prisma.pTWCasual.upsert({
+              create: differenceFromSheetItem,
+              update: differenceFromSheetItem,
+              where: {
+                id: differenceFromSheetItem.id
+              }
+            })
+          })
+        )
+      }
+    )
+    commitDifference(
+      nonCasual, 
+      dataNonCasual, 
+      async (deletedIds) => {
+        await prisma.pTWNonCasual.deleteMany({
+          where: {
+            id: {
+              in: deletedIds
+            }
+          }
+        })
+      },
+      async (differenceFromSheet) => {
+        await prisma.$transaction(
+          differenceFromSheet.map(differenceFromSheetItem => {
+            return prisma.pTWNonCasual.upsert({
+              create: differenceFromSheetItem,
+              update: differenceFromSheetItem,
+              where: {
+                id: differenceFromSheetItem.id
+              }
+            })
+          })
+        )
+      }
+    )
+    commitDifference(
+      movies, 
+      dataMovies, 
+      async (deletedIds) => {
+        await prisma.pTWMovies.deleteMany({
+          where: {
+            id: {
+              in: deletedIds
+            }
+          }
+        })
+      },
+      async (differenceFromSheet) => {
+        await prisma.$transaction(
+          differenceFromSheet.map(differenceFromSheetItem => {
+            return prisma.pTWMovies.upsert({
+              create: differenceFromSheetItem,
+              update: differenceFromSheetItem,
+              where: {
+                id: differenceFromSheetItem.id
+              }
+            })
+          })
+        )
+      }
+    )
+    commitDifference(
+      ptwInOrder, 
+      dataRolled, 
+      async (deletedIds) => {
+        await prisma.pTWRolled.deleteMany({
+          where: {
+            id: {
+              in: deletedIds
+            }
+          }
+        })
+      },
+      async (differenceFromSheet) => {
+        await prisma.$transaction(
+          differenceFromSheet.map(differenceFromSheetItem => {
+            return prisma.pTWRolled.upsert({
+              create: differenceFromSheetItem,
+              update: differenceFromSheetItem,
+              where: {
+                id: differenceFromSheetItem.id
+              }
+            })
+          })
+        )
+      }
+    )
+    commitDifferenceSeasonal(currentSeason, dataSeasonal)
     
     /* console.timeEnd('timer') */
   }
@@ -258,28 +359,25 @@ const updateDatabase = async () => {
 
 setInterval(updateDatabase, 3000)
 
-async function commitDifferenceSeasonal(sheetValues: any[], dataFromDB: PostgrestResponse<any>, tableName: string) {
+async function commitDifferenceSeasonal(sheetValues: Seasonal[], dataFromDB: Seasonal[]) {
   //!Account for transposition/deletes
-  if (dataFromDB.data?.length > sheetValues.length) {
-    const removedOrderDB = dataFromDB.data.map(item => ({
-      title: item.title,
-      status: item.status
-    }))
-    const removedOrderSheet = sheetValues.map(item => ({
-      title: item.title,
-      status: item.status
-    }))
+  if (dataFromDB.length > sheetValues.length) {
+    const removedOrderDB = dataFromDB.map(item => exclude(item, ['order']))
+    const removedOrderSheet = sheetValues.map(item => exclude(item, ['order']))
     const missingItem = uniq(xorWith(removedOrderSheet, removedOrderDB, isEqual).map(item => {
       return item.title
     }))
     
-    const responseDelete = await supabase
-        .from(tableName)
-        .delete()
-        .in('title', missingItem)
+    await prisma.seasonal.deleteMany({
+      where: {
+        title: {
+          in: missingItem
+        }
+      }
+    })
   }
 
-  const difference = uniq(xorWith(sheetValues, dataFromDB.data, isEqual).map(item => {
+  const difference = uniq(xorWith(sheetValues, dataFromDB, isEqual).map(item => {
     return item.title
   }))
   if (difference?.length > 0) {
@@ -288,16 +386,29 @@ async function commitDifferenceSeasonal(sheetValues: any[], dataFromDB: Postgres
         return title.title === item
       })
     }))
-
-    const responseUpsert = await supabase
-      .from(tableName)
-      .upsert(differenceFromSheet)
+    
+    await prisma.$transaction(
+      differenceFromSheet.map(differenceFromSheetItem => {
+        return prisma.seasonal.upsert({
+          create: differenceFromSheetItem,
+          update: differenceFromSheetItem,
+          where: {
+            title: differenceFromSheetItem.title
+          }
+        })
+      })
+    )
   }
 }
 
 //TODO: Improve this commitDifference function to reflect the more efficient commitDifference above
-async function commitDifference(sheetValues: any[], dataFromDB: PostgrestResponse<any>, tableName: string) {
-  const difference = uniq(xorWith(sheetValues, dataFromDB.data, isEqual).map(item => {
+async function commitDifference(
+  sheetValues: any[], 
+  dataFromDB: any[],
+  deleteCb: (deletedIds: number[]) => Promise<void>,
+  upsertCb: (differenceFromSheet: any[]) => Promise<void>
+) {
+  const difference = uniq(xorWith(sheetValues, dataFromDB, isEqual).map(item => {
     return item.id
   }))
   if (difference?.length > 0) {
@@ -308,18 +419,13 @@ async function commitDifference(sheetValues: any[], dataFromDB: PostgrestRespons
     }))
 
     //? Accounting for deletes
-    if (dataFromDB.data.length > sheetValues.length) {
-      const deletedIds = differenceWith(dataFromDB.data, sheetValues, isEqual).map(item => {
+    if (dataFromDB.length > sheetValues.length) {
+      const deletedIds = differenceWith(dataFromDB, sheetValues, isEqual).map(item => {
         return item.id
       })
-      /* const responseDelete =  */await supabase
-        .from(tableName)
-        .delete()
-        .in('id', deletedIds)
+      await deleteCb(deletedIds)
     }
-    /* const responseUpsert =  */await supabase
-      .from(tableName)
-      .upsert(differenceFromSheet)
+    await upsertCb(differenceFromSheet)
   }
 }
 
@@ -355,7 +461,7 @@ function getAverage(param: string) {
   if (arr?.length > 1) {
     return ((parseFloat(arr[0]) + parseFloat(arr[1])) / 2)
   } else if (!arr) {
-    //just to account for weird texts in rating field
+    //* just to account for weird texts in rating field
     return 0
   } else {
     return parseFloat(param)
