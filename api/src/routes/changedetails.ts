@@ -1,25 +1,26 @@
 import express from 'express'
 import axios from 'axios'
 import uniqBy from 'lodash/uniqBy.js'
-import { createClient } from '@supabase/supabase-js'
-import { Database } from '../lib/supabase-types.js'
+import { prisma } from '../index.js'
+import { Genres, GenresOnCompleted } from '@prisma/client'
 
 const router = express.Router()
 
 router.post('/', async (req, res) => {
-	const { body, method } = req
-	const { id, mal_id, type } = body
+	const { id, mal_id, type } = req.body
 
+  //* Ignore completed error, false positive
   if (type == 'IGNORE_ERROR') {
     try {
-      const supabase = createClient<Database>(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_API_KEY!
-      )
-
-      await supabase.from('ErrorTrack').upsert({
+      const ignoreError = {
         title_id: id,
         message: 'IGNORE'
+      }
+      await prisma.completedErrors.update({
+        data: ignoreError,
+        where: {
+          title_id: ignoreError.title_id
+        }
       })
 
       return res.status(200).send('OK')
@@ -28,16 +29,18 @@ router.post('/', async (req, res) => {
       return res.status(500).send(error)
     }
   } 
+  //* Ignores unwatched sequel
   else if (type == 'IGNORE_SEQUEL') {
     try {
-      const supabase = createClient<Database>(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_API_KEY!
-      )
-
-      await supabase.from('UnwatchedSequels').upsert({
+      const ignoreSequel = {
         id: id,
         message: 'IGNORE'
+      }
+      prisma.unwatchedSequels.update({
+        data: ignoreSequel,
+        where: {
+          id: ignoreSequel.id
+        }
       })
 
       return res.status(200).send('OK')
@@ -46,6 +49,7 @@ router.post('/', async (req, res) => {
       return res.status(500).send(error)
     }
   }
+  //* Change details of completed anime and insert all its relevant data from MAL
   else {
     try {
       const { data } = await axios.get(`https://api.myanimelist.net/v2/anime/${mal_id}`, {
@@ -56,45 +60,55 @@ router.post('/', async (req, res) => {
         }
       })
 
-      //TODO: Add function here to add new genres if any are available. Later on, also delete genres with no entries.
-      const supabase = createClient<Database>(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_API_KEY!
-      )
-      await supabase
-        .from('Genre_to_Titles')
-        .delete()
-        .eq('anime_id', id)
+      await prisma.genresOnCompleted.deleteMany({
+        where: {
+          completed_id: id
+        }
+      })
 
-      let genres: any[] = []
-      let genreRelationships: {
-        anime_id: number
-        genre_id: number
-      }[] = []
+      let genres: Genres[] = []
+      let genreRelationships: GenresOnCompleted[] = []
       genres = genres.concat(data?.genres)
 
       data?.genres.forEach((item1: { id: number; name: string }) => {
         genreRelationships.push({
-          anime_id: id,
+          completed_id: id,
           genre_id: item1.id
         })
       })
 
-      await supabase.from('Genre_to_Titles').upsert(genreRelationships)
-
       const genresNoDupe = uniqBy(genres, 'id')
-      await supabase.from('Genres').upsert(genresNoDupe)
+      await prisma.$transaction(
+        genresNoDupe.map(genre => prisma.genres.upsert({
+          create: genre,
+          update: genre,
+          where: {
+            id: genre.id
+          }
+        }))
+      )
 
-      const deleteEmptyGenres = await supabase
-        .from('Genres')
-        .select('*, Genre_to_Titles!left(*)')
-      const emptyGenreIds = deleteEmptyGenres.data
-        ?.filter(item => (item.Genre_to_Titles as Database['public']['Tables']['Genre_to_Titles']['Row'][]).length == 0)
-        .map(item => item.id)
-      await supabase
-        .from('Genres')
-        .delete()
-        .in('id', emptyGenreIds ?? [-1])
+      await prisma.genresOnCompleted.createMany({
+        data: genreRelationships
+      })
+
+      //* Delete any empty genres after updating genres previously
+      const deleteEmptyGenres = await prisma.genres.findMany({
+        where: {
+          completeds: {
+            none: {}
+          }
+        }
+      })
+
+      const genreIds = deleteEmptyGenres.map(genre => genre.id)
+      await prisma.genres.deleteMany({
+        where: {
+          id: {
+            in: genreIds
+          }
+        }
+      })
 
       const anime = {
         end_date: data?.end_date ?? '',
@@ -109,14 +123,23 @@ router.post('/', async (req, res) => {
         average_episode_duration: data?.average_episode_duration ?? 0
       }
 
-      //* Through testing, these API routes with restricted queries like UPDATE, DELETE, or INSERT fails silently if the public API key is provided instead of the service key
-      await supabase.from('CompletedDetails').delete().eq('id', id)
+      await prisma.completedDetails.delete({
+        where: {
+          id: id
+        }
+      })
 
-      await supabase.from('CompletedDetails').upsert(anime)
+      await prisma.completedDetails.create({
+        data: anime
+      })
 
-      await supabase.from('ErrorTrack').upsert({
-        title_id: id,
-        message: type
+      await prisma.completedErrors.update({
+        data: {
+          message: type
+        },
+        where: {
+          title_id: id
+        }
       })
 
       return res.status(200).send(anime)

@@ -5,6 +5,7 @@ import http from 'http'
 import { Server } from 'socket.io'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
+import { PrismaClient } from '@prisma/client'
 
 import update from './routes/update.js'
 import updatestatus from './routes/updatestatus.js'
@@ -50,6 +51,8 @@ app.use('/addtocompleted', authorize, addtocompleted)
 app.get('/', (req, res) => {
   res.send('API functional')
 })
+
+export const prisma = new PrismaClient()
 
 const httpServer = http.createServer(app);
 

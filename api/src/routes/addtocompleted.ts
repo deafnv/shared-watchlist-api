@@ -1,36 +1,35 @@
 import express from 'express'
-import { Database } from '../lib/supabase-types.js'
 import { google } from 'googleapis'
-import { createClient } from '@supabase/supabase-js'
+import { prisma } from '../index.js'
+import { PTWRolled, Seasonal } from '@prisma/client'
 
 const router = express.Router()
 
 router.post('/', async (req, res) => {
-	const { body } = req
-	const { content, id, type } = body
+	const { content, id, type } = req.body
 
 	if (!content || !id || !type || !(content instanceof Array)) 
 		return res.status(400).send('Invalid content provided')
-	
-	const supabase = createClient<Database>(
-		process.env.SUPABASE_URL!,
-		process.env.SUPABASE_SERVICE_API_KEY!
-	)
 
-	let cells
+	let cells: string
 	let rowsToInsert
-	const dataCompleted = await supabase
-		.from('Completed')
-		.select('id, title')
-		.order('id', { ascending: false })
-	if (!dataCompleted.data) return res.status(500).send('Failed to query database')
+	const dataCompleted = await prisma.completed.findMany({
+		select:{
+			id: true,
+			title: true
+		},
+		orderBy: {
+			id: 'desc'
+		}
+	})
+	if (!dataCompleted) return res.status(500).send('Failed to query database')
 
 	let lastTitleCompletedID = 0
 	let loopThrough = true
 	let counter = 0
 	while (loopThrough) {
-		if (dataCompleted.data[counter].title) {
-			lastTitleCompletedID = dataCompleted.data[counter].id + 1
+		if (dataCompleted[counter].title) {
+			lastTitleCompletedID = dataCompleted[counter].id + 1
 			loopThrough = false
 		} else {
 			counter++
@@ -40,73 +39,67 @@ router.post('/', async (req, res) => {
 	console.log(lastTitleCompletedID)
 
 	if (type === 'PTW') {
-		const completedPTWRolled = content.filter(
-			(item: Database['public']['Tables']['PTW-Rolled']['Row']) => item.id != id
-		)
+		const completedPTWRolled = content.filter((item: PTWRolled) => item.id != id)
 		completedPTWRolled.push({ id: completedPTWRolled.length + 1, status: 'Empty', title: '' })
 		const endRowIndex1 = content.length + 1
 		cells = `N2:N${endRowIndex1}`
 
-		rowsToInsert = completedPTWRolled.map(
-			(item: Database['public']['Tables']['PTW-Rolled']['Row']) => {
-				const { red, green, blue } = determineStatus(item)
-				return {
-					values: [
-						{
-							userEnteredValue: {
-								stringValue: item.title
-							},
-							userEnteredFormat: {
-								backgroundColor: {
-									red,
-									green,
-									blue
-								}
+		rowsToInsert = completedPTWRolled.map((item: PTWRolled) => {
+			const { red, green, blue } = determineStatus(item)
+			return {
+				values: [
+					{
+						userEnteredValue: {
+							stringValue: item.title
+						},
+						userEnteredFormat: {
+							backgroundColor: {
+								red,
+								green,
+								blue
 							}
 						}
-					]
-				}
+					}
+				]
 			}
-		)
+		})
 	}
 	else if (type === 'SEASONAL') {
-		const completedSeasonal = content.filter(
-			(item: Database['public']['Tables']['PTW-CurrentSeason']['Row']) => item.title != id //? id here is provided as entry title
+		const completedSeasonal: Seasonal[] = content.filter(
+			(item: Seasonal) => item.title != id //? id here is provided as entry title
 		)
 		completedSeasonal.push({ status: '', title: '', order: completedSeasonal.length + 1 })
 		const endRowIndex1 = content.length + 1
 		cells = `O2:P${endRowIndex1}`
 
-		rowsToInsert = completedSeasonal.map(
-			(item: Database['public']['Tables']['PTW-CurrentSeason']['Row']) => {
-				const { red, green, blue } = determineStatus(item)
-				return {
-					values: [
-						{
-							userEnteredValue: {
-								stringValue: item.title
-							},
-							userEnteredFormat: {
-								backgroundColor: {
-									red: 0.8,
-									green: 0.8,
-									blue: 0.8
-								}
-							}
+		rowsToInsert = completedSeasonal.map(item => {
+			const { red, green, blue } = determineStatus(item)
+			return {
+				values: [
+					{
+						userEnteredValue: {
+							stringValue: item.title
 						},
-						{
-							userEnteredFormat: {
-								backgroundColor: {
-									red,
-									green,
-									blue
-								}
+						userEnteredFormat: {
+							backgroundColor: {
+								red: 0.8,
+								green: 0.8,
+								blue: 0.8
 							}
 						}
-					]
-				}
+					},
+					{
+						userEnteredFormat: {
+							backgroundColor: {
+								red,
+								green,
+								blue
+							}
+						}
+					}
+				]
 			}
-		)
+		})
 	}
 
 	if (!cells || !rowsToInsert) return res.status(500)
@@ -153,11 +146,11 @@ router.post('/', async (req, res) => {
 		let completedTitle: any[]
 		if (type === 'PTW') {
 			completedTitle = content.filter(
-				(item: Database['public']['Tables']['PTW-Rolled']['Row']) => item.id == id
+				(item: PTWRolled) => item.id == id
 			)
 		} else if (type === 'SEASONAL') {
 			completedTitle = content.filter(
-				(item: Database['public']['Tables']['PTW-CurrentSeason']['Row']) => item.title == id //? id here is provided as entry title
+				(item: Seasonal) => item.title == id //? id here is provided as entry title
 			)
 		}
 		if (!completedTitle) return res.status(500)
@@ -177,7 +170,7 @@ router.post('/', async (req, res) => {
 	
 		return res.status(200).send('OK')
 	} catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).send(error)
 	}
 })
