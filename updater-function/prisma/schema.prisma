@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model Completed {
+  id             Int                 @id @default(autoincrement())
+  title          String              @default("")
+  type           String              @default("")
+  type_conv      Json                @default("[]")
+  episode        String              @default("")
+  episode_actual Int                 @default(0)
+  episode_total  Int                 @default(0)
+  rating1        String              @default("")
+  rating2        String              @default("")
+  rating3        String              @default("")
+  start          String              @default("")
+  end            String              @default("")
+  rating1average Float?
+  rating2average Float?
+  rating3average Float?
+  notes          String              @default("")
+  startconv      BigInt              @default(0)
+  endconv        BigInt              @default(0)
+  details        CompletedDetails?
+  error          CompletedErrors?
+  genres         GenresOnCompleted[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index(id)
+}
+
+model CompletedDetails {
+  id                    Int       @id
+  mal_id                Int       @default(0)
+  mal_title             String    @default("")
+  image_url             String    @default("")
+  mal_alternative_title String    @default("")
+  start_date            String    @default("")
+  end_date              String    @default("")
+  completed             Completed @relation(fields: [id], references: [id])
+
+  @@index([id])
+}
+
+model CompletedErrors {
+  id        Int       @id
+  title_id  Int       @unique
+  message   String?
+  completed Completed @relation(fields: [title_id], references: [id])
+}
+
+model Genres {
+  id         Int                 @id
+  name       String              @default("")
+  completeds GenresOnCompleted[]
+}
+
+model GenresOnCompleted {
+  completed    Completed @relation(fields: [completed_id], references: [id])
+  completed_id Int
+  genre        Genres    @relation(fields: [genre_id], references: [id])
+  genre_id     Int
+
+  @@id([completed_id, genre_id])
+  @@index([completed_id])
+  @@index([genre_id])
+}
+
+model PTWCasual {
+  id    Int    @id @default(autoincrement())
+  title String @default("")
+}
+
+model PTWNonCasual {
+  id    Int    @id @default(autoincrement())
+  title String @default("")
+}
+
+model PTWMovies {
+  id    Int    @id @default(autoincrement())
+  title String @default("")
+}
+
+model PTWRolled {
+  id     Int    @id @default(autoincrement())
+  title  String @default("")
+  status String @default("")
+}
+
+model Seasonal {
+  title   String           @id
+  status  String           @default("")
+  order   Int
+  details SeasonalDetails?
+}
+
+model SeasonalDetails {
+  title          String   @id
+  mal_id         Int
+  seasonal_title Seasonal @relation(fields: [title], references: [title])
+  image_url      String   @default("")
+  message        String   @default("")
+  start_date     String   @default("")
+  latest_episode Int?
+  num_episode    Int?
+  broadcast      String   @default("")
+  status         String   @default("")
+  last_updated   BigInt?
+  mal_title      String   @default("")
+
+  @@index([title])
+}

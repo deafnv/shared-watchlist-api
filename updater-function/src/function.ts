@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 
 import { google, sheets_v4 } from 'googleapis'
 import { PostgrestResponse, createClient } from '@supabase/supabase-js'
+import { Completed, Prisma, PrismaClient } from '@prisma/client'
 import isEmpty from 'lodash/isEmpty.js'
 import xorWith from 'lodash/xorWith.js'
 import differenceWith from 'lodash/differenceWith.js'
@@ -66,12 +67,15 @@ httpServer.listen(3004, () => {
 const auth = await google.auth.getClient({ credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS), scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
 const sheets = google.sheets({ version: 'v4', auth })
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY)
+const prisma = new PrismaClient()
 
 let isFunctionRunning = true
+//* Timer is reset by /refresh and only syncs the database and sheet if the time since last refresh is less than TIME_LIMIT
 let timer = new Date().getTime()
+const TIME_LIMIT = 1800000 //? 30 minutes
 
 const updateDatabase = async () => {
-  if (isFunctionRunning && new Date().getTime() - timer < 3600000) {
+  if (isFunctionRunning && new Date().getTime() - timer < TIME_LIMIT) {
     /* console.time('timer') */
     
     const resCompleted = await sheets.spreadsheets.values.get({
@@ -119,12 +123,23 @@ const updateDatabase = async () => {
       }
     })
     
-    const dataCompleted = await supabase 
-      .from('Completed')
-      .select()
-      .order('id', { ascending: true })
+    const dataCompletedRaw = await prisma.completed.findMany({
+      orderBy: {
+        id: 'asc'
+      }
+    })
 
-    const differenceCompleted = uniq(xorWith(objectifiedResCompleted, dataCompleted.data, isEqual).map(item => {
+    //* Remove updatedAt and createdAt fields
+    const dataCompleted = dataCompletedRaw.map(dataCompletedRawItem => {
+      const a = exclude(dataCompletedRawItem, ['createdAt', 'updatedAt'])
+      return {
+        ...a,
+        startconv: Number(a.startconv),
+        endconv: Number(a.endconv)
+      }
+    })
+
+    const differenceCompleted = uniq(xorWith(objectifiedResCompleted, dataCompleted, isEqual).map(item => {
       return item.id
     }))
     
@@ -134,21 +149,32 @@ const updateDatabase = async () => {
           return title.id === item
         })
       }))
-      console.log(differenceCompletedFromSheet)
+      console.log(differenceCompletedFromSheet[0].title)
 
       //? Accounting for deletes
-      if (dataCompleted.data.length > objectifiedResCompleted.length) {
-        const deletedCompletedIds = differenceWith(dataCompleted.data, objectifiedResCompleted, isEqual).map(item => {
+      if (dataCompleted.length > objectifiedResCompleted.length) {
+        const deletedCompletedIds = differenceWith(dataCompleted, objectifiedResCompleted, isEqual).map(item => {
           return item.id
         })
-        /* const responseDelete =  */await supabase
-          .from('Completed')
-          .delete()
-          .in('id', deletedCompletedIds)
+        /* const responseDelete =  */await prisma.completed.deleteMany({
+          where: {
+            id: {
+              in: deletedCompletedIds
+            }
+          }
+        })
       }
-      /* const responseUpsert =  */await supabase
-        .from('Completed')
-        .upsert(differenceCompletedFromSheet)
+      const responseUpsert = await prisma.$transaction(
+        differenceCompletedFromSheet.map(differenceCompletedFromSheetItem => {
+          return prisma.completed.upsert({
+            create: differenceCompletedFromSheetItem,
+            update: differenceCompletedFromSheetItem,
+            where: {
+              id: differenceCompletedFromSheetItem.id
+            }
+          })
+        })
+      )
     }
 
     //console.log(objectifiedResCompleted[37])
@@ -160,7 +186,7 @@ const updateDatabase = async () => {
     //console.log(xorWith(objectifiedResCompleted, dataCompleted.data, isEqual))
     
     //? Right side of sheet
-    const resRight = await sheets.spreadsheets.get({
+    /* const resRight = await sheets.spreadsheets.get({
       spreadsheetId: process.env.SHEET_ID,
       ranges: ['L2:R45'],
       fields: 'sheets/data/rowData/values(formattedValue,userEnteredFormat/backgroundColor)'
@@ -224,7 +250,7 @@ const updateDatabase = async () => {
     commitDifference(movies, dataMovies, 'PTW-Movies')
     commitDifference(nonCasual, dataNonCasual, 'PTW-NonCasual')
     commitDifference(ptwInOrder, dataRolled, 'PTW-Rolled')
-    commitDifferenceSeasonal(currentSeason, dataSeasonal, 'PTW-CurrentSeason')
+    commitDifferenceSeasonal(currentSeason, dataSeasonal, 'PTW-CurrentSeason') */
     
     /* console.timeEnd('timer') */
   }
@@ -334,4 +360,15 @@ function getAverage(param: string) {
   } else {
     return parseFloat(param)
   }
+}
+
+//* Excluding fields for prisma
+function exclude<Completed, Key extends keyof Completed>(
+  completed: Completed,
+  keys: Key[]
+): Omit<Completed, Key> {
+  for (let key of keys) {
+    delete completed[key]
+  }
+  return completed
 }
