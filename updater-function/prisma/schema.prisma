@@ -29,8 +29,8 @@ model Completed {
   rating2average   Float?
   rating3average   Float?
   notes            String              @default("")
-  startconv        BigInt              @default(0)
-  endconv          BigInt              @default(0)
+  startconv        String              @default("")
+  endconv          String              @default("")
   details          CompletedDetails?
   error            CompletedErrors?
   genres           GenresOnCompleted[]

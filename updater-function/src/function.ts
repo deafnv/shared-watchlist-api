@@ -13,6 +13,7 @@ import isEqual from 'lodash/isEqual.js'
 import uniq from 'lodash/uniq.js'
 import flatten from 'lodash/flatten.js'
 
+import getTables from './get-table.js'
 import emitRealtimeChanges, { Tables } from './realtime.js'
 
 dotenv.config()
@@ -22,6 +23,8 @@ const app = express()
 app.use(
   cors({origin: ['http://localhost:3000', 'http://127.0.0.1:3000'].concat(process.env.CORS_URL.split(','))})
 )
+
+app.use('/table', getTables)
 
 app.get('/', (req, res) => {
   res.send(isFunctionRunning)
@@ -73,7 +76,7 @@ httpServer.listen(3004, () => {
 
 const auth = await google.auth.getClient({ credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS), scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
 const sheets = google.sheets({ version: 'v4', auth })
-const prisma = new PrismaClient()
+export const prisma = new PrismaClient()
 
 let isFunctionRunning = true
 //* Timer is reset by /refresh and only syncs the database and sheet if the time since last refresh is less than TIME_LIMIT
@@ -119,9 +122,9 @@ const updateDatabase = async () => {
         rating2: fixed[5] ?? '',
         rating3: fixed[6] ?? '',
         start: fixed[7] ?? '',
-        startconv: isNaN(startconv.getTime()) ? 0 : startconv.getTime(),
+        startconv: isNaN(startconv.getTime()) ? '' : startconv.toISOString(),
         end: fixed[8] ?? '',
-        endconv: isNaN(endconv.getTime()) ? 0 : endconv.getTime(),
+        endconv: isNaN(endconv.getTime()) ? '' : endconv.toISOString(),
         rating1average: fixed[4] ? getAverage(fixed[4]) : 0,
         rating2average: fixed[5] ? getAverage(fixed[5]) : 0,
         rating3average: fixed[6] ? getAverage(fixed[6]) : 0,
@@ -136,14 +139,7 @@ const updateDatabase = async () => {
     })
 
     //* Remove updatedAt and createdAt fields
-    const dataCompleted = dataCompletedRaw.map(dataCompletedRawItem => {
-      const a = exclude(dataCompletedRawItem, ['createdAt', 'updatedAt'])
-      return {
-        ...a,
-        startconv: Number(a.startconv),
-        endconv: Number(a.endconv)
-      }
-    })
+    const dataCompleted = dataCompletedRaw.map(dataCompletedRawItem => exclude(dataCompletedRawItem, ['createdAt', 'updatedAt']))
 
     const differenceCompleted = uniq(xorWith(objectifiedResCompleted, dataCompleted, isEqual).map(item => {
       return item.id
@@ -173,15 +169,12 @@ const updateDatabase = async () => {
       
       await prisma.$transaction(
         differenceCompletedFromSheet.map(differenceCompletedFromSheetItem => {
-          let differenceItemConv = structuredClone(differenceCompletedFromSheetItem) as unknown as Omit<Completed, 'updatedAt' | 'createdAt'>
-          differenceItemConv.startconv = BigInt(differenceCompletedFromSheetItem.startconv)
-          differenceItemConv.endconv = BigInt(differenceCompletedFromSheetItem.endconv)
-          console.log(differenceItemConv.startconv, differenceItemConv.endconv)
+          console.log(differenceCompletedFromSheetItem.startconv, differenceCompletedFromSheetItem.endconv)
           return prisma.completed.upsert({
-            create: differenceItemConv,
-            update: differenceItemConv,
+            create: differenceCompletedFromSheetItem,
+            update: differenceCompletedFromSheetItem,
             where: {
-              id: differenceItemConv.id
+              id: differenceCompletedFromSheetItem.id
             }
           })
         })
