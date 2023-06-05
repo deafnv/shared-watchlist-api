@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
       })
 
       let genres: Genres[] = []
-      let genreRelationships: GenresOnCompleted[] = []
+      let genreRelationships: Omit<GenresOnCompleted, 'id'>[] = []
       genres = genres.concat(data?.genres)
 
       data?.genres.forEach((item1: { id: number; name: string }) => {

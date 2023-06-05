@@ -30,7 +30,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 		if (dataDBCompleted.length == 0) return res.status(200).send('No more to update')
 
 		let genres: Genres[] = []
-		let genreRelationships: GenresOnCompleted[] = []
+		let genreRelationships: Omit<GenresOnCompleted, 'id'>[] = []
 		const malResponse = await Promise.all(
 			dataDBUnprocessed.map(async (item, index) => {
 				if (!item.title) {
@@ -104,15 +104,19 @@ router.get('/loadcompleteddetails', async (req, res) => {
 			data: malResponse
 		})
 
-		await prisma.$transaction(
-			genreRelationships.map(genreRelationship => prisma.genresOnCompleted.upsert({
-				create: genreRelationship,
-				update: genreRelationship,
-				where: {
-					completed_id: genreRelationship.completed_id
+		const completedIds = genreRelationships.map(genreRelationship => genreRelationship.completed_id)
+
+		await prisma.genresOnCompleted.deleteMany({
+			where: {
+				completed_id: {
+					in: completedIds
 				}
-			}))
-		)
+			}
+		})
+
+		await prisma.genresOnCompleted.createMany({
+			data: genreRelationships
+		})
 
 		return res.sendStatus(200)
 	} catch (error) {

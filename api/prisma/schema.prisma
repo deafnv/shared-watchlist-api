@@ -83,12 +83,12 @@ model Genres {
 }
 
 model GenresOnCompleted {
+  id           Int       @id @default(autoincrement())
   completed    Completed @relation(fields: [completed_id], references: [id])
   completed_id Int
   genre        Genres    @relation(fields: [genre_id], references: [id])
   genre_id     Int
 
-  @@id([completed_id])
   @@index([completed_id])
   @@index([genre_id])
 }

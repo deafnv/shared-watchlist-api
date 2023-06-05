@@ -17,7 +17,7 @@ router.get('/completeddetails', async (req, res) => {
   if (typeof id !== 'string') return res.sendStatus(400)
   const completedDetails = await prisma.completedDetails.findFirst({
     where: {
-      id: {
+      title_id: {
         equals: parseInt(id)
       }
     }
