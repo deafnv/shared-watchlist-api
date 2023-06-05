@@ -93,7 +93,6 @@ const updateDatabase = async () => {
       fields: 'values'
     })
     
-    //TODO: Fix the timestamp here for sorting client side, alternatively could sort using JS's convert string to date function.
     const objectifiedResCompleted = resCompleted.data.values?.map(item => {
       let fixed = new Array(10)
       fixed.fill(null)
@@ -101,8 +100,9 @@ const updateDatabase = async () => {
       let [id, title, type, episode, rating1, rating2, rating3, start, end, notes] = item
       fixed = [id, title, type, episode, rating1, rating2, rating3, start, end, notes]
 
-      const startconv = new Date(fixed[7])
-      const endconv = new Date(fixed[8])
+      //* All dates in sheet are in UTC+8
+      const startconv = new Date(`${fixed[7]} UTC+8`)
+      const endconv = new Date(`${fixed[8]} UTC+8`)
       const episodeOriginal: string = fixed[3] ?? ''
       const episodeSplit = episodeOriginal.split('/')
       const episodeActual = episodeSplit[0] ? parseInt(episodeSplit[0]) : -1
