@@ -42,7 +42,7 @@ app.use(limiter)
 
 app.use('/update', authorize, update)
 app.use('/updatestatus', authorize, updatestatus)
-app.use('/seasonal', authorize, seasonal)
+app.use('/seasonal', seasonal)
 app.use('/changedetails', authorize, changedetails)
 app.use('/completed', authorize, completed)
 app.use('/ptw', authorize, ptw)

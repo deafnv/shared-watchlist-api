@@ -1,6 +1,6 @@
 {
   "name": "update-supabase-function",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "",
   "main": "dist/function.js",
   "type": "module",

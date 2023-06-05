@@ -131,8 +131,9 @@ model SeasonalDetails {
   num_episode    Int?
   broadcast      String   @default("")
   status         String   @default("")
-  last_updated   BigInt?
+  last_updated   String?
   mal_title      String   @default("")
 
   @@index([title])
+  @@fulltext([message])
 }

@@ -1,7 +1,5 @@
 import express from 'express'
-import { google } from 'googleapis'
 import { prisma } from './function.js'
-import { PTWRolled, Seasonal } from '@prisma/client'
 
 const router = express.Router()
 
@@ -12,6 +10,92 @@ router.get('/completed', async (req, res) => {
     }
   })
   return res.send(completed)
+})
+
+router.get('/completeddetails', async (req, res) => {
+  const { id } = req.query //? Completed id
+  if (typeof id !== 'string') return res.sendStatus(400)
+  const completedDetails = await prisma.completedDetails.findFirst({
+    where: {
+      id: {
+        equals: parseInt(id)
+      }
+    }
+  })
+  return res.send(completedDetails)
+})
+
+router.get('/genre', async (req, res) => {
+  const genres = await prisma.genres.findMany({
+    orderBy: {
+      id: 'asc'
+    }
+  })
+  return res.send(genres)
+})
+
+router.get('/completedsbygenreid', async (req, res) => {
+  const { id } = req.query
+  if (typeof id !== 'string') return res.sendStatus(400)
+  const genres = await prisma.genres.findMany({
+    where: {
+      id: {
+        equals: parseInt(id)
+      }
+    },
+    include: {
+      completeds: {
+        include: {
+          completed: true
+        }
+      }
+    }
+  })
+})
+
+router.get('/genreadvancedsearch', async (req, res) => {
+  const { id } = req.query
+  if (!(id instanceof Array) || id.some(item => typeof item != 'string')) return res.sendStatus(400)
+  const parsedIds = id.map(item => parseInt(item as string))
+  const completeds = await prisma.completed.findMany({
+    where: {
+      genres: {
+        every: {
+          genre_id: {
+            in: parsedIds
+          }
+        }
+      }
+    },
+    include: {
+      genres: {
+        include: {
+          genre: true
+        }
+      }
+    },
+    orderBy: {
+      id: 'desc'
+    }
+  })
+  return res.send(completeds)
+})
+
+router.get('/genresofid', async (req, res) => {
+  const { id } = req.query //? Completed id
+  if (typeof id !== 'string') return res.sendStatus(400)
+  const genresOfId = await prisma.genres.findMany({
+    where: {
+      completeds: {
+        every: {
+          completed_id: {
+            equals: parseInt(id)
+          }
+        }
+      }
+    }
+  })
+  return res.send(genresOfId)
 })
 
 router.get('/ptwrolled', async (req, res) => {

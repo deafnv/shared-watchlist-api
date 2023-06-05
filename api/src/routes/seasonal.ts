@@ -27,12 +27,13 @@ router.get('/batchtrack', async (req, res) => {
         const $ = load(cheerioData.data)
         const latestEpisode = $('tr#topicRow1').find('td.forum_boardrow1:nth-child(2) > a').text().match(/Episode (\d+)/)?.[1]
         const episodeCount = $('h2:contains("Information")').next().next().text()
+        const episodeCountNum = parseInt(episodeCount.trim().split(/\s+/).pop())
         const status = $('h2:contains("Information")').next().next().next().text()
         latestEpisodes.push({
           mal_id: item.mal_id,
           latest_episode: parseInt(latestEpisode ?? '-1'),
-          last_updated: new Date().getTime(),
-          num_episodes: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
+          last_updated: new Date().toISOString(),
+          num_episode: isNaN(episodeCountNum) ? -1 : episodeCountNum,
           status: parseStatus(status)
         })
       })
@@ -69,8 +70,8 @@ router.post('/trackitem', async (req, res) => {
     const toUpsert = {
       mal_id: id,
       latest_episode: parseInt(latestEpisode ?? '-1'),
-      last_updated: new Date().getTime(),
-      num_episodes: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
+      last_updated: new Date().toISOString(),
+      num_episode: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
       status: parseStatus(status)
     }
 
