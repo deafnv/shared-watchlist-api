@@ -101,8 +101,8 @@ const updateDatabase = async () => {
       fixed = [id, title, type, episode, rating1, rating2, rating3, start, end, notes]
 
       //* All dates in sheet are in UTC+8
-      const startconv = new Date(`${fixed[7]} UTC+8`)
-      const endconv = new Date(`${fixed[8]} UTC+8`)
+      const startconv = new Date(fixed[7])
+      const endconv = new Date(fixed[8])
       const episodeOriginal: string = fixed[3] ?? ''
       const episodeSplit = episodeOriginal.split('/')
       const episodeActual = episodeSplit[0] ? parseInt(episodeSplit[0]) : -1
@@ -122,9 +122,9 @@ const updateDatabase = async () => {
         rating2: fixed[5] ?? '',
         rating3: fixed[6] ?? '',
         start: fixed[7] ?? '',
-        startconv: isNaN(startconv.getTime()) ? '' : startconv.toISOString(),
+        startconv: isNaN(startconv.getTime()) ? '' : new Date(`${fixed[7]} UTC+8`).toISOString(),
         end: fixed[8] ?? '',
-        endconv: isNaN(endconv.getTime()) ? '' : endconv.toISOString(),
+        endconv: isNaN(endconv.getTime()) ? '' : new Date(`${fixed[8]} UTC+8`).toISOString(),
         rating1average: fixed[4] ? getAverage(fixed[4]) : 0,
         rating2average: fixed[5] ? getAverage(fixed[5]) : 0,
         rating3average: fixed[6] ? getAverage(fixed[6]) : 0,
