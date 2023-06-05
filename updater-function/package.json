@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "npx nodemon",
     "build": "tsc",
+    "postinstall": "prisma generate",
     "start": "node --es-module-specifier-resolution=node ./dist/function.js"
   },
   "keywords": [],

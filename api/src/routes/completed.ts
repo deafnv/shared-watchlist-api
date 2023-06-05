@@ -32,8 +32,8 @@ router.get('/loadcompleteddetails', async (req, res) => {
 		let genres: Genres[] = []
 		let genreRelationships: GenresOnCompleted[] = []
 		const malResponse = await Promise.all(
-			dataDBUnprocessed.map(async item => {
-				if (!item.title) {
+			dataDBUnprocessed.map(async (item, index) => {
+				if (!item.title || index > 5) {
 					return {
 						end_date: '',
 						id: item.id,
@@ -114,7 +114,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 			}))
 		)
 
-		return res.status(200).send(malResponse)
+		return res.sendStatus(200)
 	} catch (error) {
 		console.error(error)
 		return res.status(500).send(error)

@@ -50,7 +50,7 @@ model CompletedDetails {
   mal_alternative_title    String    @default("")
   start_date               String    @default("")
   end_date                 String    @default("")
-  mal_synopsis             String    @default("")
+  mal_synopsis             String    @db.Text
   average_episode_duration Int       @default(0)
   mal_rating               Float     @default(0)
   completed                Completed @relation(fields: [id], references: [id])

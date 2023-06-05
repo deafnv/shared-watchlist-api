@@ -1,12 +1,13 @@
 {
   "name": "api",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "npx nodemon",
     "build": "tsc",
+    "postinstall": "prisma generate",
     "start": "node --es-module-specifier-resolution=node ./dist/index.js"
   },
   "keywords": [],
