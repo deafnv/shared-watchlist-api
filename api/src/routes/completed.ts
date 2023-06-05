@@ -33,10 +33,10 @@ router.get('/loadcompleteddetails', async (req, res) => {
 		let genreRelationships: GenresOnCompleted[] = []
 		const malResponse = await Promise.all(
 			dataDBUnprocessed.map(async (item, index) => {
-				if (!item.title || index > 5) {
+				if (!item.title) {
 					return {
 						end_date: '',
-						id: item.id,
+						title_id: item.id,
 						image_url: '',
 						mal_alternative_title: '',
 						mal_id: -1,
@@ -75,7 +75,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 
 				return {
 					end_date: data?.data[0].node.end_date ?? '',
-					id: item.id,
+					title_id: item.id,
 					image_url: data?.data[0].node.main_picture.large ?? '',
 					mal_alternative_title: data?.data[0].node.alternative_titles.en ?? '',
 					mal_id: parseInt(data?.data[0].node.id),

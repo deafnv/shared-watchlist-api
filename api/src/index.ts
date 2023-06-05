@@ -44,7 +44,7 @@ app.use('/update', authorize, update)
 app.use('/updatestatus', authorize, updatestatus)
 app.use('/seasonal', authorize, seasonal)
 app.use('/changedetails', authorize, changedetails)
-app.use('/completed', completed)
+app.use('/completed', authorize, completed)
 app.use('/ptw', authorize, ptw)
 app.use('/addtocompleted', authorize, addtocompleted)
 

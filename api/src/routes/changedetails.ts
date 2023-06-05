@@ -112,7 +112,7 @@ router.post('/', async (req, res) => {
 
       const anime = {
         end_date: data?.end_date ?? '',
-        id: id,
+        title_id: id,
         image_url: data?.main_picture.large ?? '',
         mal_alternative_title: data?.alternative_titles.en ?? '',
         mal_id: parseInt(data?.id),
