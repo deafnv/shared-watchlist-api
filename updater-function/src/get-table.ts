@@ -35,32 +35,14 @@ router.get('/genre', async (req, res) => {
 })
 
 router.get('/completedsbygenreid', async (req, res) => {
-  const { id } = req.query
-  if (typeof id !== 'string') return res.sendStatus(400)
-  const genres = await prisma.genres.findMany({
-    where: {
-      id: {
-        equals: parseInt(id)
-      }
-    },
-    include: {
-      completeds: {
-        include: {
-          completed: true
-        }
-      }
-    }
-  })
-})
-
-router.get('/genreadvancedsearch', async (req, res) => {
-  const { id } = req.query
+  const { id } = req.query //? Array of genre ids
   if (!(id instanceof Array) || id.some(item => typeof item != 'string')) return res.sendStatus(400)
   const parsedIds = id.map(item => parseInt(item as string))
+  //FIXME: Do proper inner join
   const completeds = await prisma.completed.findMany({
     where: {
       genres: {
-        every: {
+        some: {
           genre_id: {
             in: parsedIds
           }
@@ -68,11 +50,7 @@ router.get('/genreadvancedsearch', async (req, res) => {
       }
     },
     include: {
-      genres: {
-        include: {
-          genre: true
-        }
-      }
+      genres: true
     },
     orderBy: {
       id: 'desc'
@@ -87,7 +65,7 @@ router.get('/genresofid', async (req, res) => {
   const genresOfId = await prisma.genres.findMany({
     where: {
       completeds: {
-        every: {
+        some: {
           completed_id: {
             equals: parseInt(id)
           }
