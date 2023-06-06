@@ -127,10 +127,7 @@ router.get('/loadcompleteddetails', async (req, res) => {
 
 router.get('/loadsequels', async (req, res) => {
 	try {
-		/* await supabase
-			.from('UnwatchedSequels')
-			.delete()
-			.neq('id', -2) */
+		//await prisma.unwatchedSequels.deleteMany()
 
 		const dataDBCompleted = await prisma.completed.findMany({
 			include: {
@@ -162,59 +159,43 @@ router.get('/loadsequels', async (req, res) => {
 			})), 
 			isEqual)
 
-		/* const leftJoin = await supabase
-			.from('Completed')
-			.select('*, UnwatchedSequels!left(*)')
-			.eq('UnwatchedSequels.anime_id', null)
-
-		console.log(leftJoin.error)
-		console.log(leftJoin.data) */
-
 		const completedMalIds = dataDBCompleted.map(item => item.details.mal_id).filter(i => i)
 
-		res.sendStatus(200)
-
-		//TODO: Blocking. Takes way too long, this just gets blocked by MAL
-		let counter = 0
-		let sequels: UnwatchedSequels[] = []
+		let sequels: Omit<UnwatchedSequels, 'id'| 'message' | 'sequel_status'>[] = []
 		for (const item of noSequelsMalId) {
-			counter++
-			
-			const cheerioData = await axios.get(`https://myanimelist.net/anime/${item.mal_id}`, {
-				headers: { 'Accept-Encoding': 'gzip,deflate,compress' }
-			})
-			const $ = load(cheerioData.data)
-			const relatedTable = $('table.anime_detail_related_anime').children().first().children()
-			const status = await new Promise(async resolve => {
-				let sequel: any
-				for (const element of relatedTable) {
-					if ($(element).text().trim().includes('Sequel:')) {
-						//* If the found sequel hasn't already been watched, find the information on the sequel and add it
-						if (!completedMalIds.includes(parseInt($(element).children().last().children().attr('href')?.split('/')[2] ?? '0'))) {
-							try {
-								const { data } = await axios.get(`https://myanimelist.net${$(element).children().last().children().attr('href')!}`, {
-									headers: { 'Accept-Encoding': 'gzip,deflate,compress' }
-								})
-								const $$ = load(data)
-								const status = $$('h2:contains("Information")').next().next().next().text()
-
-								if (status.includes('Finished Airing')) {
-									sequel = ({
-										title_id: item.id,
-										mal_id: item.mal_id,
-										sequel_title: $(element).children().last().text(),
-										sequel_mal_id: parseInt($(element).children().last().children().attr('href')?.split('/')[2] ?? '0')
-									})
-								}
-							} catch (error) {
-								console.error(error)
-							}
-						}
+			const { data } = await axios.get(
+				`https://api.myanimelist.net/v2/anime/${item.mal_id}`,
+				{
+					headers: { 'X-MAL-CLIENT-ID': process.env.MAL_CLIENT_ID },
+					params: {
+						fields:
+							'related_anime'
 					}
 				}
-				resolve(sequel)
-			})
-			if (status) sequels.push(status as UnwatchedSequels)
+			)
+
+			if (data.related_anime) {
+				const relatedAnimes: any[] = data.related_anime.map((related: any) => ({
+					sequel_mal_id: related.node.id,
+					sequel_title: related.node.title,
+					sequel_image_url: related.node.main_picture.large,
+					relation: related.relation_type
+				}))
+
+				const sequelAnimes = relatedAnimes.filter((related: any) => related.relation == "sequel")
+
+				sequelAnimes.forEach(sequelAnime => {
+					if (!completedMalIds.includes(sequelAnime.sequel_mal_id)) {
+						sequels.push({
+							title_id: item.id,
+							mal_id: item.mal_id,
+							sequel_mal_id: sequelAnime.sequel_mal_id,
+							sequel_title: sequelAnime.sequel_title,
+							sequel_image_url: sequelAnime.sequel_image_url
+						})
+					}
+				})
+			}
 		}
 			
 		await prisma.$transaction(
@@ -226,10 +207,52 @@ router.get('/loadsequels', async (req, res) => {
 				}
 			}))
 		)
+
+		return res.sendStatus(200)
 	} 
 	catch (error) {
 		console.error(error)
 		return res.status(500).send(JSON.stringify(error))
+	}
+})
+
+router.get('/filtersequels', async (req, res) => {
+	try {
+		const unwatchedSequels = await prisma.unwatchedSequels.findMany()
+
+		let sequels: { id: number; sequel_status: string }[] = []
+
+		for (const unwatchedSequel of unwatchedSequels) {
+			const { data } = await axios.get(
+				`https://api.myanimelist.net/v2/anime/${unwatchedSequel.sequel_mal_id}`,
+				{
+					headers: { 'X-MAL-CLIENT-ID': process.env.MAL_CLIENT_ID },
+					params: {
+						fields:
+							'status'
+					}
+				}
+			)
+
+			sequels.push({
+				id: unwatchedSequel.id,
+				sequel_status: data.status
+			})
+		}
+
+		await prisma.$transaction(
+			sequels.map(sequel => prisma.unwatchedSequels.update({
+				data: sequel,
+				where: {
+					id: sequel.id
+				}
+			}))
+		)
+
+		return res.sendStatus(200)
+	} catch (error) {
+		console.error(error)
+		return res.status(500).send(error)
 	}
 })
 

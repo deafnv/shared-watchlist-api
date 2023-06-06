@@ -55,7 +55,6 @@ router.get('/batchtrack', async (req, res) => {
 	}
 })
 
-//TODO: Untested
 router.post('/trackitem', async (req, res) => {
 	const { body } = req
 	const { id } = body

@@ -67,13 +67,15 @@ model CompletedErrors {
 }
 
 model UnwatchedSequels {
-  id            Int       @id @default(autoincrement())
-  title_id      Int       @unique
-  mal_id        Int
-  sequel_title  String    @default("")
-  sequel_mal_id Int
-  message       String    @default("")
-  completed     Completed @relation(fields: [title_id], references: [id])
+  id               Int       @id @default(autoincrement())
+  title_id         Int       @unique
+  mal_id           Int
+  sequel_title     String    @default("")
+  sequel_mal_id    Int
+  sequel_image_url String    @default("")
+  sequel_status    String    @default("")
+  message          String    @default("")
+  completed        Completed @relation(fields: [title_id], references: [id])
 }
 
 model Genres {
