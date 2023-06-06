@@ -76,6 +76,20 @@ router.get('/genresofid', async (req, res) => {
   return res.send(genresOfId)
 })
 
+router.get('/sequels', async (req, res) => {
+  const unwatchedSequels = await prisma.unwatchedSequels.findMany({
+    include: {
+      completed: {
+        select: {
+          title: true
+        }
+      }
+    }
+  })
+
+  return res.send(unwatchedSequels)
+})
+
 router.get('/ptwrolled', async (req, res) => {
 	const ptwRolled = await prisma.pTWRolled.findMany({
     orderBy: {
