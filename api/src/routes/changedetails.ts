@@ -16,8 +16,9 @@ router.post('/', async (req, res) => {
         title_id: id,
         message: 'IGNORE'
       }
-      await prisma.completedErrors.update({
-        data: ignoreError,
+      await prisma.completedErrors.upsert({
+        create: ignoreError,
+        update: ignoreError,
         where: {
           title_id: ignoreError.title_id
         }
@@ -25,7 +26,7 @@ router.post('/', async (req, res) => {
 
       return res.status(200).send('OK')
     } catch (error) {
-      console.log(error)
+      console.error(error)
       return res.status(500).send(error)
     }
   } 
@@ -45,7 +46,7 @@ router.post('/', async (req, res) => {
 
       return res.status(200).send('OK')
     } catch (error) {
-      console.log(error)
+      console.error(error)
       return res.status(500).send(error)
     }
   }
@@ -125,7 +126,7 @@ router.post('/', async (req, res) => {
 
       await prisma.completedDetails.delete({
         where: {
-          id: id
+          title_id: id
         }
       })
 
@@ -133,8 +134,13 @@ router.post('/', async (req, res) => {
         data: anime
       })
 
-      await prisma.completedErrors.update({
-        data: {
+      await prisma.completedErrors.upsert({
+        create: {
+          title_id: id,
+          message: type
+        },
+        update: {
+          title_id: id,
           message: type
         },
         where: {
@@ -144,7 +150,7 @@ router.post('/', async (req, res) => {
 
       return res.status(200).send(anime)
     } catch (error) {
-      console.log(error)
+      console.error(error)
       return res.status(500).send(error)
     }
   }
