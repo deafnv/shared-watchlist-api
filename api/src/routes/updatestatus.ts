@@ -7,24 +7,29 @@ router.post('/', async (req, res) => {
   const { body } = req
 	const { content, cells } = body
 
-	let red
-	let green
-	let blue
+	let red: number
+	let green: number
+	let blue: number
 	switch (content) {
 		case 'Watched':
-			red = 0.20392157
-			green = 0.65882355
-			blue = 0.3254902
+			red = 0.5764706
+			green = 0.76862746
+			blue = 0.49019608
 			break
 		case 'Not loaded':
 			red = 0.91764706
-			green = 0.2627451
-			blue = 0.20784314
+			green = 0.6
+			blue = 0.6
 			break
 		case 'Loaded':
-			red = 0.9843137
-			green = 0.7372549
-			blue = 0.015686275
+			red = 0.9764706
+			green = 0.79607844
+			blue = 0.6117647
+			break
+    case 'Not downloaded':
+      red = 0.8
+			green = 0.8
+			blue = 0.8
 			break
 		case 'Not aired':
 			red = 0

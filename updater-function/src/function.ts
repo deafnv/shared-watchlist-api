@@ -472,17 +472,20 @@ function determineState(backgroundColor: sheets_v4.Schema$Color) {
   const green = backgroundColor?.green
   const blue = backgroundColor?.blue
   let status
-  if ((0.20 < red && 0.21 > red) && (0.65 < green && 0.66 > green) && (0.32 < blue && 0.33 > blue)) {
+  if ((0.57 < red && 0.58 > red) && (0.76 < green && 0.77 > green) && (0.49 < blue && 0.5 > blue)) {
     //? Watched
     status = 'Watched'
   }
-  else if ((0.91 < red && 0.92 > red) && (0.26 < green && 0.27 > green) && (0.20 < blue && 0.21 > blue)) {
+  else if ((0.91 < red && 0.92 > red) && 0.6 == green && 0.6 == blue) {
     //? Not loaded
     status = 'Not loaded'
   }
-  else if ((0.98 < red && 0.99 > red) && (0.73 < green && 0.74 > green) && (0.01 < blue && 0.02 > blue)) {
+  else if ((0.97 < red && 0.98 > red) && (0.79 < green && 0.8 > green) && (0.61 < blue && 0.62 > blue)) {
     //? Loaded
     status = 'Loaded'
+  }
+  else if (red == 0.8 && green == 0.8 && blue == 0.8) {
+    status = 'Not downloaded'
   }
   else if (isEmpty(backgroundColor)) {
     status = 'Not aired'
