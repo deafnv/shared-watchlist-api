@@ -151,13 +151,22 @@ const updateDatabase = async () => {
           return title.id === item
         })
       }))
-      console.log(differenceCompletedFromSheet[0].title)
 
       //? Accounting for deletes
       if (dataCompleted.length > objectifiedResCompleted.length) {
         const deletedCompletedIds = differenceWith(dataCompleted, objectifiedResCompleted, isEqual).map(item => {
           return item.id
         })
+
+        //! Could maybe cascade on delete instead
+        await prisma.genresOnCompleted.deleteMany({
+          where: {
+            completed_id: {
+              in: deletedCompletedIds
+            }
+          }
+        })
+
         await prisma.completed.deleteMany({
           where: {
             id: {
