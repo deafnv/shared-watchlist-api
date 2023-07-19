@@ -1,24 +1,27 @@
 {
   "name": "update-supabase-function",
-  "version": "1.0.0",
+  "version": "2.0.12",
   "description": "",
-  "main": "function.js",
+  "main": "dist/function.js",
   "type": "module",
   "scripts": {
     "dev": "npx nodemon",
     "build": "tsc",
+    "postinstall": "prisma generate",
     "start": "node --es-module-specifier-resolution=node ./dist/function.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.2.2",
+    "@prisma/client": "^4.15.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "googleapis": "^110.0.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "prisma": "^4.15.0",
+    "socket.io": "^4.6.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",

@@ -76,7 +76,7 @@ router.post('/addrolled', async (req, res) => {
 
     return res.status(200).send('OK')
   } catch (error) {
-    console.log(error)
+    console.error(error)
     return res.status(500).send(error)
   }
 })

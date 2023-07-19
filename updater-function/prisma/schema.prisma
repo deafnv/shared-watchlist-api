@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model Completed {
+  id               Int                 @id @default(autoincrement())
+  title            String              @default("")
+  type             String              @default("")
+  type_conv        Json                @default("[]")
+  episode          String              @default("")
+  episode_actual   Int                 @default(0)
+  episode_total    Int                 @default(0)
+  rating1          String              @default("")
+  rating2          String              @default("")
+  rating3          String              @default("")
+  start            String              @default("")
+  end              String              @default("")
+  rating1average   Float?
+  rating2average   Float?
+  rating3average   Float?
+  notes            String              @default("")
+  startconv        String              @default("")
+  endconv          String              @default("")
+  details          CompletedDetails?
+  error            CompletedErrors?
+  genres           GenresOnCompleted[]
+  unwatched_sequel UnwatchedSequels?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index(id)
+}
+
+model CompletedDetails {
+  id                       Int       @id @default(autoincrement())
+  title_id                 Int       @unique
+  mal_id                   Int       @default(0)
+  mal_title                String    @default("")
+  image_url                String    @default("")
+  mal_alternative_title    String    @default("")
+  start_date               String    @default("")
+  end_date                 String    @default("")
+  mal_synopsis             String    @db.Text
+  average_episode_duration Int       @default(0)
+  mal_rating               Float     @default(0)
+  completed                Completed @relation(fields: [title_id], references: [id], onDelete: Cascade)
+
+  @@index([title_id])
+}
+
+model CompletedErrors {
+  id        Int       @id @default(autoincrement())
+  title_id  Int       @unique
+  message   String?
+  completed Completed @relation(fields: [title_id], references: [id])
+}
+
+model UnwatchedSequels {
+  id               Int       @id @default(autoincrement())
+  title_id         Int       @unique
+  mal_id           Int
+  sequel_title     String    @default("")
+  sequel_mal_id    Int
+  sequel_image_url String    @default("")
+  sequel_status    String    @default("")
+  message          String    @default("")
+  completed        Completed @relation(fields: [title_id], references: [id], onDelete: Cascade)
+}
+
+model Genres {
+  id         Int                 @id
+  name       String
+  completeds GenresOnCompleted[]
+}
+
+model GenresOnCompleted {
+  id           Int       @id @default(autoincrement())
+  completed    Completed @relation(fields: [completed_id], references: [id])
+  completed_id Int
+  genre        Genres    @relation(fields: [genre_id], references: [id])
+  genre_id     Int
+
+  @@index([completed_id])
+  @@index([genre_id])
+}
+
+model PTWCasual {
+  id    Int    @id
+  title String @default("")
+}
+
+model PTWNonCasual {
+  id    Int    @id
+  title String @default("")
+}
+
+model PTWMovies {
+  id    Int    @id
+  title String @default("")
+}
+
+model PTWRolled {
+  id     Int    @id
+  title  String @default("")
+  status String @default("")
+}
+
+model Seasonal {
+  title   String           @id
+  status  String           @default("")
+  order   Int
+  details SeasonalDetails?
+}
+
+model SeasonalDetails {
+  title          String   @id
+  mal_id         Int      @unique
+  seasonal_title Seasonal @relation(fields: [title], references: [title], onDelete: Cascade)
+  image_url      String   @default("")
+  message        String   @default("")
+  start_date     String   @default("")
+  latest_episode Int?
+  num_episode    Int?
+  broadcast      String   @default("")
+  status         String   @default("")
+  last_updated   String?
+  mal_title      String   @default("")
+
+  @@index([title])
+  @@fulltext([message])
+}

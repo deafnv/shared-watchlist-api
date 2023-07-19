@@ -1,48 +1,56 @@
 import axios from 'axios'
 import { load } from 'cheerio'
 import express from 'express'
-import { createClient } from '@supabase/supabase-js'
-import { Database } from '../lib/supabase-types.js'
+import { prisma } from '../index.js'
 
 const router = express.Router()
 
 router.get('/batchtrack', async (req, res) => {
 	try {
-		const supabase = createClient<Database>(
-			process.env.SUPABASE_URL!,
-			process.env.SUPABASE_SERVICE_API_KEY!
-		)
-		const dataDB = await supabase
-			.from('SeasonalDetails')
-			.select()
-			.not('message', 'ilike', '%Exempt%')
-    if (!dataDB.data) return res.status(500).send('Failed to retrieve database info')
+		const dataDB = await prisma.seasonalDetails.findMany({
+      where: {
+        message: {
+          not: {
+            search: 'Exempt'
+          }
+        }
+      }
+    })
+    if (!dataDB) return res.status(500).send('Failed to retrieve database info')
 
-    let latestEpisodes: Array<{}> = []
+    let latestEpisodes: any[] = []
     await Promise.all(
-      dataDB.data.map(async (item, index) => {
+      dataDB.map(async (item, index) => {
         const cheerioData = await axios.get(`https://myanimelist.net/anime/${item.mal_id}/a/forum?topic=episode`, {
 					headers: { 'Accept-Encoding': 'gzip,deflate,compress' }
 				})
         const $ = load(cheerioData.data)
         const latestEpisode = $('tr#topicRow1').find('td.forum_boardrow1:nth-child(2) > a').text().match(/Episode (\d+)/)?.[1]
         const episodeCount = $('h2:contains("Information")').next().next().text()
+        const episodeCountNum = parseInt(episodeCount.trim().split(/\s+/).pop())
         const status = $('h2:contains("Information")').next().next().next().text()
         latestEpisodes.push({
           mal_id: item.mal_id,
           latest_episode: parseInt(latestEpisode ?? '-1'),
-          last_updated: new Date().getTime(),
-          num_episodes: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
+          last_updated: new Date().toISOString(),
+          num_episode: isNaN(episodeCountNum) ? -1 : episodeCountNum,
           status: parseStatus(status)
         })
       })
     )
 
-    await supabase.from('SeasonalDetails').upsert(latestEpisodes)
+    await prisma.$transaction(
+      latestEpisodes.map(latestEpisode => prisma.seasonalDetails.update({
+        data: latestEpisode,
+        where: {
+          mal_id: latestEpisode.mal_id
+        }
+      }))
+    )
 
     return res.status(200).send(latestEpisodes)
 	} catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).send(error)
 	}
 })
@@ -52,32 +60,31 @@ router.post('/trackitem', async (req, res) => {
 	const { id } = body
 
 	try {
-		//* Through testing, these API routes with restricted queries like UPDATE, DELETE, or INSERT fails silently if the public API key is provided instead of the service key
-		const supabase = createClient<Database>(
-			process.env.SUPABASE_URL!,
-			process.env.SUPABASE_SERVICE_API_KEY!
-		)
-		
 		const { data } = await axios.get(`https://myanimelist.net/anime/${id}/a/forum?topic=episode`, {
 			headers: { 'Accept-Encoding': 'gzip,deflate,compress' }
 		})
 		const $ = load(data)
-        const latestEpisode = $('tr#topicRow1').find('td.forum_boardrow1:nth-child(2) > a').text().match(/Episode (\d+)/)?.[1]
-        const episodeCount = $('h2:contains("Information")').next().next().text()
-        const status = $('h2:contains("Information")').next().next().next().text()
-        const toUpsert = {
-          mal_id: id,
-          latest_episode: parseInt(latestEpisode ?? '-1'),
-          last_updated: new Date().getTime(),
-          num_episodes: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
-          status: parseStatus(status)
-        }
+    const latestEpisode = $('tr#topicRow1').find('td.forum_boardrow1:nth-child(2) > a').text().match(/Episode (\d+)/)?.[1]
+    const episodeCount = $('h2:contains("Information")').next().next().text()
+    const status = $('h2:contains("Information")').next().next().next().text()
+    const toUpsert = {
+      mal_id: id,
+      latest_episode: parseInt(latestEpisode ?? '-1'),
+      last_updated: new Date().toISOString(),
+      num_episode: parseInt(episodeCount.trim().split(/\s+/).pop() ?? '-1'),
+      status: parseStatus(status)
+    }
 
-		await supabase.from('SeasonalDetails').upsert(toUpsert)
+    await prisma.seasonalDetails.update({
+      data: toUpsert,
+      where: {
+        mal_id: toUpsert.mal_id
+      }
+    })
 
 		return res.status(200).send(toUpsert)
 	} catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).send(error)
 	}
 })
