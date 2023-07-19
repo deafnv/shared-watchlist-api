@@ -89,7 +89,7 @@ const updateDatabase = async () => {
     //? Left side of sheet
     const resCompleted = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
-      range: `Sheet1!A2:J999`,
+      range: "'Watch List'!A2:J999",
       fields: 'values'
     })
     
@@ -203,7 +203,7 @@ const updateDatabase = async () => {
     //? Right side of sheet
     const resRight = await sheets.spreadsheets.get({
       spreadsheetId: process.env.SHEET_ID,
-      ranges: ['L2:R45'],
+      ranges: ["'Plan to Watch List'!B3:H45"],
       fields: 'sheets/data/rowData/values(formattedValue,userEnteredFormat/backgroundColor)'
     })
 
@@ -481,13 +481,17 @@ function determineState(backgroundColor: sheets_v4.Schema$Color) {
     status = 'Not loaded'
   }
   else if ((0.97 < red && 0.98 > red) && (0.79 < green && 0.8 > green) && (0.61 < blue && 0.62 > blue)) {
+    //? Loaded partially
+    status = 'Loaded partially'
+  }
+  else if ((0.71 < red && 0.72 > red) && (0.84 < green && 0.85 > green) && (0.65 < blue && 0.66 > blue)) {
     //? Loaded
     status = 'Loaded'
   }
-  else if (red == 0.8 && green == 0.8 && blue == 0.8) {
+  else if ((0.7 < red && 0.71 > red) && (0.65 < green && 0.66 > green) && (0.83 < blue && 0.84 > blue)) {
     status = 'Not downloaded'
   }
-  else if (isEmpty(backgroundColor)) {
+  else if ((0.26 < red && 0.27 > red) && (0.26 < green && 0.27 > green) && (0.26 < blue && 0.27 > blue)) {
     status = 'Not aired'
   }
   else {

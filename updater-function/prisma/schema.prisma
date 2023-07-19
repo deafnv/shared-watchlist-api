@@ -54,7 +54,7 @@ model CompletedDetails {
   mal_synopsis             String    @db.Text
   average_episode_duration Int       @default(0)
   mal_rating               Float     @default(0)
-  completed                Completed @relation(fields: [title_id], references: [id])
+  completed                Completed @relation(fields: [title_id], references: [id], onDelete: Cascade)
 
   @@index([title_id])
 }
@@ -75,7 +75,7 @@ model UnwatchedSequels {
   sequel_image_url String    @default("")
   sequel_status    String    @default("")
   message          String    @default("")
-  completed        Completed @relation(fields: [title_id], references: [id])
+  completed        Completed @relation(fields: [title_id], references: [id], onDelete: Cascade)
 }
 
 model Genres {
@@ -126,7 +126,7 @@ model Seasonal {
 model SeasonalDetails {
   title          String   @id
   mal_id         Int      @unique
-  seasonal_title Seasonal @relation(fields: [title], references: [title])
+  seasonal_title Seasonal @relation(fields: [title], references: [title], onDelete: Cascade)
   image_url      String   @default("")
   message        String   @default("")
   start_date     String   @default("")
